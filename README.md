@@ -1,2 +1,176 @@
-# -
+<h1>企业软件库部署指南</h1>
+
+<div class="toc">
+<b>目录</b><br>
+<a href="#s0">0. 部署包内容与架构总览</a><br>
+<a href="#s1">1. 准备工作</a><br>
+<a href="#s2">2. 部署 IIS Web 门户</a><br>
+<a href="#s3">3. 配置 MIME 类型与下载支持</a><br>
+<a href="#s4">4. 初始化软件（首次上架）</a><br>
+<a href="#s5">5. 日常添加 / 更新软件</a><br>
+<a href="#s6">6. 上线检查清单</a><br>
+<a href="#s7">7. 后续：AD 权限控制（暂缓项）</a>
+</div>
+
+<h2 id="s0">0. 部署包内容与架构总览</h2>
+
+<table>
+<tr><th>目录/文件</th><th>作用</th></tr>
+<tr><td><code>web\</code></td><td>门户站点（纯静态，无需运行环境），放 IIS 即用</td></tr>
+<tr><td><code>web\authorized.json</code></td><td>商业授权软件条目（手工维护）</td></tr>
+<tr><td><code>scripts\软件清单.csv</code></td><td>软件信息清单（管理后台自动维护，一般不用手工编辑）</td></tr>
+<tr><td><code>scripts\Build-Catalog.ps1</code></td><td>扫描安装包 + 读取清单 → 自动生成门户数据</td></tr>
+<tr><td><code>scripts\更新软件目录.bat</code></td><td>手动刷新门户数据（管理后台不可用时的备用方式）</td></tr>
+<tr><td><code>scripts\启动管理界面.bat</code> + <code>Admin-Server.ps1</code> + <code>admin.html</code></td><td><b>可视化管理后台</b>：浏览器上传软件、填写信息、一键上下架</td></tr>
+<tr><td><code>employee-guide.txt</code></td><td>员工使用指南（部署完直接发全员）</td></tr>
+</table>
+
+<p><b>架构一句话</b>：员工浏览器访问 Web 门户下载安装包（零客户端安装）；
+所有安装包均为<b>本地文件</b>，通过<b>管理后台上传</b>（或手动放入目录），
+软件页面信息自动生成，不需要手工编辑任何页面文件。</p>
+
+<p><b>日常添加软件（推荐用管理后台，全程不碰文件）</b>：</p>
+<table>
+<tr><th>步骤</th><th>动作</th></tr>
+<tr><td>① 打开管理后台</td><td>服务器上双击「启动管理界面.bat」，浏览器打开提示的地址</td></tr>
+<tr><td>② 上传</td><td>拖入安装包 → 填名称/分类/说明 → 点「上传并登记」</td></tr>
+<tr><td>③ 完成</td><td>安装包自动保存、清单自动登记、门户自动刷新，员工立即可见</td></tr>
+</table>
+
+<div class="tip">
+本文档以 <code>D:\SoftLibrary</code> 为部署根目录示例，请按实际环境替换。
+</div>
+
+<h2 id="s1">1. 准备工作</h2>
+
+<ul>
+<li>一台 Windows Server（建议 2016 及以上），已加入 AD 域</li>
+<li>磁盘空间：软件包建议预留 50–100GB</li>
+<li><b>可访问公网</b>（直接或走代理）——自动下载官方安装包需要；若服务器不能出公网，可在一台能出网的 IT 工作机上运行自动更新脚本，目录指向服务器共享</li>
+<li>（可选但建议）在 DNS 中为服务器创建好记名，如 <code>soft.corp.local</code></li>
+</ul>
+
+<h2 id="s2">2. 部署 IIS Web 门户</h2>
+
+<h3>2.1 安装 IIS 角色</h3>
+<pre><code># 管理员 PowerShell
+Install-WindowsFeature Web-Server -IncludeManagementTools</code></pre>
+
+<h3>2.2 复制部署包并创建站点</h3>
+<pre><code># 把部署包解压到 D:\SoftLibrary，然后：
+New-WebSite -Name "SoftLibrary" `
+    -PhysicalPath "D:\SoftLibrary\web" `
+    -Port 80 -HostHeader "soft.corp.local" `
+    -ApplicationPool "DefaultAppPool"</code></pre>
+
+<p>暂时不想配域名就去掉 <code>-HostHeader</code>，直接用 IP 访问 <code>http://&lt;服务器IP&gt;/</code>。</p>
+
+<h3>2.3 验证</h3>
+<p>浏览器访问站点能看到软件库首页（当前显示的是授权软件占位条目，属正常）。</p>
+
+<h2 id="s3">3. 配置 MIME 类型与下载支持</h2>
+
+<p>安装包文件类型默认可能被 IIS 拒绝下载，一次性配置：</p>
+
+<pre><code>$site = "IIS:\Sites\SoftLibrary"
+".msi",".exe",".zip",".7z",".msix",".msixbundle" | ForEach-Object {
+    $ext = $_
+    if (-not (Get-WebConfigurationProperty -Filter "//staticContent/mimeMap[@fileExtension='$ext']" -PSPath $site -Name fileExtension -ErrorAction SilentlyContinue)) {
+        Add-WebConfigurationProperty -Filter "//staticContent" -PSPath $site -Name "." -Value @{fileExtension="$ext"; mimeType="application/octet-stream"}
+    }
+}
+# 移除请求筛选对 .exe 的拒绝（如有）
+Remove-WebConfigurationProperty -Filter "//system.webServer/security/requestFiltering/fileExtensions[@fileExtension='.exe']" -PSPath $site -Name "." -ErrorAction SilentlyContinue</code></pre>
+
+<h2 id="s4">4. 初始化软件（首次上架）</h2>
+
+<h3>4.1 启动管理后台</h3>
+<p>在服务器上双击 <code>scripts\启动管理界面.bat</code>（要局域网访问需右键"以管理员身份运行"），
+浏览器打开窗口提示的地址：</p>
+<pre><code>http://localhost:8080/admin?key=admin123     （本机）
+http://&lt;服务器IP&gt;:8080/admin?key=admin123  （其他机器）</code></pre>
+
+<div class="warn">
+<b>上线前必改</b>：① <code>Admin-Server.ps1</code> 顶部的 <code>$Key</code> 默认值（访问密钥）；
+② 防火墙中对 8080 端口限制来源（仅允许 IT 部门网段/自己的 IP）。
+</div>
+
+<div class="tip">
+<b>下载记录功能</b>：员工在门户点击下载时，页面会把下载行为上报到管理后台（8080 端口），
+按<b>来源 IP</b> 记录到服务器根目录 <code>download-log.csv</code>（时间/IP/软件/文件），
+管理界面的「下载记录」区可查看并按 IP 或软件名筛选（Excel 可直接打开该 CSV 做统计）。
+注意：需要下载记录时管理后台须保持运行（不开不记录，但不影响员工下载本身）；
+且 8080 端口需对员工机器开放上报，防火墙建议允许内网访问 8080——管理页面由密钥保护，无密钥只能上报不能查看。
+</div>
+
+<h3>4.2 批量上传软件</h3>
+<p>在管理后台中逐个上传：拖入安装包 → 系统自动识别文件名里的目录名/版本号 →
+补填软件名称、分类、说明 → 点「上传并登记」。上传完成后门户自动刷新，
+列表实时显示每个软件的状态（已上架 / 缺安装包）。</p>
+
+<p>安装包事先集中下载好（清单 CSV 里预置了各软件的官方"软件源地址"可作参考），
+然后一口气传完。</p>
+
+<h3>4.3 验证</h3>
+<ul>
+<li>浏览器 Ctrl+F5 刷新门户，各软件卡片、分类、版本号、大小显示正常</li>
+<li>点几个下载按钮确认能正常下载</li>
+</ul>
+
+<h2 id="s5">5. 日常添加 / 更新软件（都在管理后台操作）</h2>
+
+<table>
+<tr><th>你要做什么</th><th>怎么做</th></tr>
+<tr><td>新增软件</td><td>管理后台拖入安装包 + 填表 → 「上传并登记」→ 员工立即可见</td></tr>
+<tr><td>升级版本</td><td>同上，上传新安装包到相同目录名（旧包保留，门户自动显示最新版）</td></tr>
+<tr><td>下架软件</td><td>管理后台点「下架」→ 安装包移入 deleted-soft\ 备份（不删除，可手工恢复）</td></tr>
+<tr><td>改名称/分类/说明</td><td>同一目录重新上传同名文件并填新信息即可覆盖</td></tr>
+<tr><td>调整授权软件</td><td>编辑 <code>web\authorized.json</code> → 双击「更新软件目录」</td></tr>
+</table>
+
+<div class="tip">
+<b>原理</b>：门户数据 <code>web\data.js</code> 完全由脚本生成，永远不要手工编辑。
+管理后台的上传动作 = 保存安装包到 <code>web\soft\&lt;目录&gt;\</code> + 更新软件清单.csv + 自动刷新门户，三步一次完成。
+服务器不需要访问公网，所有安装包均为本地上传。
+</div>
+
+<div class="warn">
+<b>商业授权软件</b>安装包不要通过管理后台上传（上传即全员可下载）。
+授权软件只在 <code>web\authorized.json</code> 维护条目，待第 7 步 AD 权限控制启用后再提供下载。
+</div>
+
+<h2 id="s6">6. 上线检查清单</h2>
+
+<table>
+<tr><th>#</th><th>检查项</th><th>通过标准</th></tr>
+<tr><td>1</td><td>门户访问</td><td>内网任一员工机浏览器打开首页正常</td></tr>
+<tr><td>2</td><td>搜索/分类</td><td>搜索"Chrome"能过滤出对应卡片</td></tr>
+<tr><td>3</td><td>安装包下载</td><td>点击下载按钮能正常下载 .msi/.exe</td></tr>
+<tr><td>4</td><td>管理后台</td><td>上传一个测试软件 → Ctrl+F5 门户出现卡片 → 后台点下架 → 卡片消失</td></tr>
+<tr><td>5</td><td>密钥已修改</td><td>Admin-Server.ps1 的 $Key 已改默认值，防火墙已限制 8080 来源</td></tr>
+<tr><td>6</td><td>授权软件隔离</td><td>确认 web\soft\ 下没有授权软件安装包</td></tr>
+<tr><td>7</td><td>通知全员</td><td>发出 employee-guide.txt</td></tr>
+</table>
+
+<h2 id="s7">7. 后续：AD 权限控制（暂缓项）</h2>
+
+<p>当前阶段全员可见。后续需要控制授权软件下载时：</p>
+
+<ol>
+<li>创建受限目录 <code>D:\SoftLibrary\web\soft-auth\</code>，放入授权软件安装包</li>
+<li>IIS 中对 <code>/soft-auth</code> 路径关闭匿名认证、启用 Windows 认证：
+<pre><code>Set-WebConfigurationProperty -Filter "/system.webServer/security/authentication/anonymousAuthentication" `
+    -Name enabled -Value $false -Location "SoftLibrary/soft-auth"
+Set-WebConfigurationProperty -Filter "/system.webServer/security/authentication/windowsAuthentication" `
+    -Name enabled -Value $true -Location "SoftLibrary/soft-auth"</code></pre></li>
+<li>安装 URL Rewrite 模块，按 AD 组限制访问（如仅 <code>CORP\SoftAuth-Users</code> 组）</li>
+<li>下载审计：IIS 日志中按用户名统计 <code>/soft-auth</code> 的下载记录（LogParser 定期出报表）</li>
+<li><code>authorized.json</code> 中授权软件条目的 <code>file</code> 改指向 <code>soft-auth/...</code> 路径</li>
+</ol>
+
+<p style="margin-top:40px;color:#6b7280;font-size:13px">排障：下载 404.3 → MIME 类型没配（第 3 步）；页面上没显示软件 → 没双击 bat 或清单"目录"列与实际文件夹名不一致；自动更新下载失败 → 官网地址变更或网络/代理问题，看控制台报错。</p>
+
+</body>
+</html>
+
 为企业内部软件管理打造的软件下载平台

@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>软件库管理后台</title>
+<style>
+  :root { --primary:#2563eb; --bg:#f5f7fa; --ok:#16a34a; --warn:#f59e0b; --err:#dc2626; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:"Microsoft YaHei",sans-serif; background:var(--bg); color:#1f2937; min-height:100vh; }
+  .wrap { max-width:880px; margin:0 auto; padding:24px 20px 60px; }
+  header { background:linear-gradient(135deg,#1e40af,#3b82f6); color:#fff; border-radius:12px; padding:20px 24px; margin-bottom:20px; }
+  header h1 { font-size:20px; font-weight:600; }
+  header p { font-size:13px; opacity:.85; margin-top:4px; }
+  .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:20px 24px; margin-bottom:20px; }
+  .card h2 { font-size:15px; color:#1d4ed8; margin-bottom:14px; }
+  /* 拖拽区 */
+  #dropzone { border:2px dashed #cbd5e1; border-radius:10px; padding:28px 16px; text-align:center; color:#6b7280; cursor:pointer; transition:all .15s; }
+  #dropzone.hover, #dropzone.hasfile { border-color:var(--primary); background:#eff6ff; color:#1d4ed8; }
+  #dropzone .fname { font-weight:600; color:inherit; }
+  #dropzone small { display:block; margin-top:4px; font-size:12px; opacity:.7; }
+  /* 表单 */
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; margin-top:16px; }
+  .field label { display:block; font-size:13px; color:#374151; margin-bottom:4px; }
+  .field label .req { color:var(--err); }
+  .field input, .field select { width:100%; border:1px solid #d1d5db; border-radius:8px; padding:8px 10px; font-size:14px; font-family:inherit; outline:none; }
+  .field input:focus, .field select:focus { border-color:var(--primary); }
+  .field.full { grid-column:1 / -1; }
+  .hint { font-size:12px; color:#9ca3af; margin-top:3px; }
+  .btn { display:inline-block; border:none; border-radius:8px; padding:10px 28px; font-size:14px; cursor:pointer; font-family:inherit; }
+  .btn-primary { background:var(--primary); color:#fff; }
+  .btn-primary:hover { background:#1d4ed8; }
+  .btn-primary:disabled { background:#93c5fd; cursor:not-allowed; }
+  .btn-danger { background:#fee2e2; color:var(--err); padding:5px 12px; font-size:12px; }
+  .btn-danger:hover { background:#fecaca; }
+  .btn-edit { background:#eff6ff; color:var(--primary); border:1px solid #bfdbfe; padding:5px 12px; font-size:12px; border-radius:8px; cursor:pointer; font-family:inherit; }
+  .btn-edit:hover { background:#dbeafe; }
+  /* 进度条 */
+  #progress { display:none; height:6px; background:#e5e7eb; border-radius:3px; margin-top:14px; overflow:hidden; }
+  #progress .bar { height:100%; width:0; background:var(--primary); transition:width .15s; }
+  /* 清单表格 */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { border-bottom:1px solid #f0f1f3; padding:9px 8px; text-align:left; }
+  th { color:#6b7280; font-weight:500; font-size:12px; }
+  .badge { font-size:11px; border-radius:4px; padding:1px 7px; }
+  .badge.ok { background:#dcfce7; color:#15803d; }
+  .badge.miss { background:#fef3c7; color:#b45309; }
+  .empty { text-align:center; color:#9ca3af; padding:30px 0; }
+  /* toast */
+  #toast { position:fixed; bottom:36px; left:50%; transform:translateX(-50%) translateY(20px); border-radius:8px; padding:10px 24px; font-size:13px; color:#fff; opacity:0; pointer-events:none; transition:all .25s; }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  #toast.ok { background:#16a34a; } #toast.err { background:var(--err); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>软件库管理后台</h1>
+    <p>上传安装包并填写信息，保存后员工门户页面立即更新</p>
+  </header>
+
+  <div class="card">
+    <h2>上传软件</h2>
+    <div id="dropzone">
+      <span id="dztext">点击选择安装包文件，或把文件拖到这里</span>
+      <small>支持 .exe / .msi / .zip / .7z</small>
+    </div>
+    <input type="file" id="fileinput" style="display:none" accept=".exe,.msi,.msix,.msixbundle,.zip,.7z">
+
+    <div class="grid">
+      <div class="field">
+        <label>目录名 <span class="req">*</span></label>
+        <input id="f_dir" placeholder="如 7zip" maxlength="40">
+        <div class="hint" id="dirhint">软件存放的文件夹，仅字母/数字/横线/下划线</div>
+      </div>
+      <div class="field">
+        <label>软件名称 <span class="req">*</span></label>
+        <input id="f_name" placeholder="如 7-Zip">
+      </div>
+      <div class="field">
+        <label>分类</label>
+        <div style="display:flex;gap:6px">
+          <select id="f_cat" style="flex:1"></select>
+          <input id="f_cat_new" placeholder="输入新分类名" style="flex:1;display:none">
+        </div>
+        <div class="hint" id="f_cat_hint">从下拉选择；选「＋ 新建分类…」可输入新分类</div>
+      </div>
+      <div class="field">
+        <label>版本号</label>
+        <input id="f_ver" placeholder="留空自动从文件名识别">
+      </div>
+      <div class="field full">
+        <label>说明</label>
+        <input id="f_desc" placeholder="一句话软件说明，显示在下载卡片上">
+      </div>
+      <div class="field full">
+        <label>软件源地址（选填，备忘用）</label>
+        <input id="f_src" placeholder="官方下载页链接">
+      </div>
+    </div>
+
+    <div style="margin-top:16px; display:flex; align-items:center; gap:14px;">
+      <button class="btn btn-primary" id="btnUpload" disabled>上传并登记</button>
+      <span style="font-size:12px;color:#9ca3af" id="uploadtip">请先选择文件</span>
+    </div>
+    <div id="progress"><div class="bar" id="bar"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>软件清单 <span style="font-weight:400;color:#9ca3af;font-size:12px" id="count"></span></h2>
+    <table>
+      <thead><tr><th>软件</th><th>分类</th><th>版本</th><th>下载量</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty" style="display:none">清单为空</div>
+    <div style="margin-top:12px;font-size:12px;color:#9ca3af;line-height:1.8">
+      说明：已上架软件的安装包保存在服务器 <b>web\soft\&lt;目录名&gt;\</b>（员工门户下载的就是这些文件）；<br>
+      下架后的安装包自动移入 <b>deleted-soft\&lt;目录名-时间戳&gt;\</b> 备份，不会删除，需要恢复时移回 web\soft\ 并双击"更新软件目录.bat"即可。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>下载记录 <span style="font-weight:400;color:#9ca3af;font-size:12px" id="logcount"></span>
+      <input id="logsearch" placeholder="按 IP / 软件名筛选" style="float:right;width:200px;border:1px solid #d1d5db;border-radius:8px;padding:5px 10px;font-size:13px;font-family:inherit;outline:none">
+    </h2>
+    <table>
+      <thead><tr><th>时间</th><th>来源 IP</th><th>软件</th><th>文件</th></tr></thead>
+      <tbody id="logtbody"></tbody>
+    </table>
+    <div class="empty" id="logempty" style="display:none">暂无下载记录（员工在门户点击下载后此处实时显示，完整日志在服务器 download-log.csv）</div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  var key = new URLSearchParams(location.search).get("key") || "";
+  var file = null;
+
+  // ---------- 工具 ----------
+  function toast(msg, ok) {
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.className = "show " + (ok ? "ok" : "err");
+    setTimeout(function () { t.className = ""; }, 2600);
+  }
+  function qs(id) { return document.getElementById(id); }
+
+  // ---------- 文件选择 ----------
+  var dz = qs("dropzone"), fi = qs("fileinput");
+  dz.onclick = function () { fi.click(); };
+  dz.ondragover = function (e) { e.preventDefault(); dz.classList.add("hover"); };
+  dz.ondragleave = function () { dz.classList.remove("hover"); };
+  dz.ondrop = function (e) {
+    e.preventDefault(); dz.classList.remove("hover");
+    if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+  };
+  fi.onchange = function () { if (fi.files.length) setFile(fi.files[0]); };
+
+  // 目录名输入实时提示（帮助用户当场发现非法字符）
+  qs("f_dir").addEventListener("input", function () {
+    var v = this.value;
+    var bad = (v.match(/[^A-Za-z0-9_\-]/g) || []).join(" ");
+    this.style.borderColor = (v && bad) ? "#dc2626" : "";
+    this.style.background  = (v && bad) ? "#fef2f2" : "";
+    document.getElementById("dirhint").textContent = (v && bad)
+      ? "⚠ 含非法字符：" + bad + "（只能字母/数字/横线/下划线）"
+      : "软件存放的文件夹，仅字母/数字/横线/下划线";
+  });
+
+  function setFile(f) {
+    var ext = f.name.substring(f.name.lastIndexOf(".")).toLowerCase();
+    if (".exe,.msi,.msix,.msixbundle,.zip,.7z".indexOf(ext) < 0) { toast("不支持的文件类型：" + ext, false); return; }
+    file = f;
+    dz.classList.add("hasfile");
+    qs("dztext").innerHTML = "已选择：<span class=\"fname\">" + f.name + "</span>（" + (f.size/1048576).toFixed(1) + " MB）";
+    qs("btnUpload").disabled = false;
+    qs("uploadtip").textContent = "点击上传并登记";
+    // 目录名 / 版本的智能建议
+    if (!qs("f_dir").value) {
+      // 从文件名提取软件名并清洗成合法目录名（去掉版本号中的点等非法字符）
+      var base = f.name.replace(/\.[^.]+$/, "").toLowerCase()
+                     .replace(/[^a-z0-9_\-]+/g, " ")   // 非法字符(含点号)变空格
+                     .trim().split(" ")[0] || "";
+      if (base) qs("f_dir").value = base;
+    }
+    if (!qs("f_ver").value) {
+      var m = f.name.match(/(\d+(\.\d+){1,3})/);
+      if (m) qs("f_ver").value = m[1];
+    }
+  }
+
+  // ---------- 分类选择：下拉（常用+已有分类）+「新建分类」切换输入 ----------
+  var BASE_CATS = ["浏览器","办公套件","压缩工具","PDF 工具","输入法","通讯协作","系统工具"];
+  function fillCatSelect(sel, extraCat) {
+    // extraCat: 需要预选的自定义分类（如该软件当前分类）
+    var cats = BASE_CATS.slice();
+    if (extraCat && cats.indexOf(extraCat) < 0) cats.unshift(extraCat);
+    var html = cats.map(function (c) { return "<option>" + c + "</option>"; }).join("");
+    html += "<option value='__new__'>＋ 新建分类…</option>";
+    sel.innerHTML = html;
+    if (extraCat) sel.value = extraCat;
+  }
+  function getCatValue() {
+    // 上传表单当前生效的分类值
+    var sel = qs("f_cat"), inp = qs("f_cat_new");
+    if (sel.value === "__new__") return inp.value.trim();
+    return sel.value;
+  }
+  function bindCatSwitch(selId, inputId, hintId) {
+    var sel = qs(selId), inp = qs(inputId);
+    sel.addEventListener("change", function () {
+      var isNew = (sel.value === "__new__");
+      inp.style.display = isNew ? "" : "none";
+      sel.style.display = isNew ? "none" : "";
+      if (isNew) { inp.value = ""; inp.focus(); if (hintId) qs(hintId).textContent = "输入新分类名（如：设计软件），门户会自动生成分类标签"; }
+      else if (hintId) qs(hintId).textContent = "从下拉选择；选「＋ 新建分类…」可输入新分类";
+    });
+    inp.addEventListener("blur", function () {
+      if (!inp.value.trim()) {  // 输入框清空时切回下拉
+        inp.style.display = "none"; sel.style.display = "";
+        sel.selectedIndex = 0;
+      }
+    });
+  }
+  fillCatSelect(qs("f_cat"));
+  bindCatSwitch("f_cat", "f_cat_new", "f_cat_hint");
+
+  // ---------- 上传 ----------
+  qs("btnUpload").onclick = function () {
+    var dir = qs("f_dir").value.trim(), name = qs("f_name").value.trim();
+    if (!dir) { toast("请填写目录名", false); return; }
+    if (!/^[A-Za-z0-9_\-]{1,40}$/.test(dir)) {
+      // 显示具体原因：指出非法字符
+      var bad = (dir.match(/[^A-Za-z0-9_\-]/g) || []).join(" ");
+      toast("目录名「" + dir + "」含非法字符" + (bad ? "：" + bad : "") + "，只能用字母/数字/横线/下划线", false);
+      return;
+    }
+    if (!name) { toast("请填写软件名称", false); return; }
+    var cat = getCatValue();
+    if (!cat) { toast("请选择分类或输入新分类名", false); return; }
+
+    // 用 multipart 表单提交：中文信息放请求体，避免 URL 编码乱码
+    var fd = new FormData();
+    fd.append("file", file, file.name);
+    fd.append("dir", dir);
+    fd.append("name", name);
+    fd.append("cat", cat);
+    fd.append("desc", qs("f_desc").value.trim());
+    fd.append("ver", qs("f_ver").value.trim());
+    fd.append("src", qs("f_src").value.trim());
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload?key=" + encodeURIComponent(key));
+    xhr.upload.onprogress = function (e) {
+      qs("progress").style.display = "block";
+      qs("bar").style.width = Math.round(e.loaded / e.total * 100) + "%";
+    };
+    xhr.onload = function () {
+      qs("progress").style.display = "none"; qs("bar").style.width = "0";
+      try {
+        var r = JSON.parse(xhr.responseText);
+        if (r.ok) {
+          toast(r.msg, true);
+          file = null; fi.value = "";
+          dz.classList.remove("hasfile");
+          qs("dztext").innerHTML = "点击选择安装包文件，或把文件拖到这里";
+          qs("btnUpload").disabled = true; qs("uploadtip").textContent = "请先选择文件";
+          ["f_dir","f_name","f_ver","f_desc","f_src"].forEach(function (id) { qs(id).value = ""; });
+          // 分类控件复位
+          qs("f_cat_new").style.display = "none"; qs("f_cat").style.display = "";
+          qs("f_cat").selectedIndex = 0;
+          qs("f_cat_hint").textContent = "从下拉选择；选「＋ 新建分类…」可输入新分类";
+          load();
+        } else { toast(r.msg || "上传失败", false); }
+      } catch (e) { toast("服务器响应异常", false); }
+    };
+    xhr.onerror = function () { toast("网络错误", false); };
+    xhr.send(fd);   // 发送 FormData（文件+表单字段），不能用 xhr.send(file)——那只发文件本体
+  };
+
+  // ---------- 清单加载 / 删除 ----------
+  function load() {
+    fetch("/api/state?key=" + encodeURIComponent(key)).then(function (r) { return r.json(); }).then(function (r) {
+      if (!r.ok) { toast(r.msg || "加载失败", false); return; }
+      var tb = qs("tbody"); tb.innerHTML = "";
+      qs("count").textContent = "（共 " + r.rows.length + " 个 · 累计下载 " + (r.totalDl || 0) + " 次）";
+      qs("empty").style.display = r.rows.length ? "none" : "block";
+      r.rows.forEach(function (s) {
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td><b>" + esc(s.name) + "</b><br><span style='color:#9ca3af;font-size:11px'>" + esc(s.dir) + "</span></td>" +
+          "<td>" + esc(s.cat || "—") + "</td>" +
+          "<td>" + esc(s.ver || "自动") + "</td>" +
+          "<td><b>" + (s.dl || 0) + "</b></td>" +
+          "<td>" + (s.hasPkg
+            ? "<span class='badge ok'>已上架</span>"
+            : "<span class='badge miss'>缺安装包</span>") + "</td>" +
+          "<td><button class='btn-edit'>编辑</button> <button class='btn-danger'>下架</button></td>";
+        tr.querySelector(".btn-edit").onclick = function () { openEdit(s); };
+        tr.querySelector(".btn-danger").onclick = function () {
+          if (!confirm("下架「" + s.name + "」？安装包会移入服务器 deleted-soft 目录备份，可恢复。")) return;
+          fetch("/api/delete?key=" + encodeURIComponent(key) + "&dir=" + encodeURIComponent(s.dir), { method: "POST", headers: { "Content-Length": "0" } })
+            .then(function (r) { return r.json(); })
+            .then(function (r2) {
+              toast(r2.msg, r2.ok);
+              if (r2.ok) load();
+            });
+        };
+        tb.appendChild(tr);
+      });
+    }).catch(function () { toast("无法连接管理服务", false); });
+  }
+
+  // ---------- 编辑弹窗 ----------
+  function openEdit(s) {
+    var overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:99";
+    var dlg = document.createElement("div");
+    dlg.style.cssText = "background:#fff;border-radius:12px;padding:24px 28px;width:420px;max-width:92vw;box-shadow:0 20px 50px rgba(0,0,0,.2)";
+    var catSel = document.createElement("select"); catSel.style.cssText = "width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;outline:none";
+    var catInp = document.createElement("input"); catInp.placeholder = "输入新分类名"; catInp.style.cssText = "width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;outline:none;display:none";
+    fillCatSelect(catSel, s.cat);
+    catSel.addEventListener("change", function () {
+      var isNew = (catSel.value === "__new__");
+      catInp.style.display = isNew ? "" : "none";
+      catSel.style.display = isNew ? "none" : "";
+      if (isNew) { catInp.value = ""; catInp.focus(); }
+    });
+    catInp.addEventListener("blur", function () {
+      if (!catInp.value.trim()) { catInp.style.display = "none"; catSel.style.display = ""; catSel.selectedIndex = 0; }
+    });
+    var catWrap = document.createElement("div"); catWrap.style.marginBottom = "10px";
+    var catLabel = document.createElement("label"); catLabel.textContent = "分类（选「＋ 新建分类…」可输入新的）"; catLabel.style.cssText = "display:block;font-size:13px;color:#374151;margin-bottom:4px";
+    catWrap.appendChild(catLabel); catWrap.appendChild(catSel); catWrap.appendChild(catInp);
+
+    dlg.innerHTML =
+      '<h3 style="font-size:16px;margin-bottom:4px">编辑软件信息</h3>' +
+      '<div style="font-size:12px;color:#9ca3af;margin-bottom:16px">目录名：' + esc(s.dir) + '（不可改）· 安装包不受影响，仅更新页面信息</div>' +
+      '<div class="field" style="margin-bottom:10px"><label>软件名称</label><input id="e_name" value="' + esc(s.name) + '"></div>' +
+      '<div id="e_cat_slot"></div>' +
+      '<div class="field" style="margin-bottom:10px"><label>版本号</label><input id="e_ver" value="' + esc(s.ver) + '" placeholder="留空自动识别"></div>' +
+      '<div class="field" style="margin-bottom:10px"><label>说明</label><input id="e_desc" value="' + esc(s.desc) + '"></div>' +
+      '<div class="field"><label>软件源地址</label><input id="e_src" value="' + esc(s.src || "") + '"></div>' +
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">' +
+      '<button class="btn btn-ghost" id="e_cancel">取消</button>' +
+      '<button class="btn btn-primary" id="e_save">保存</button></div>';
+    overlay.appendChild(dlg);
+    dlg.querySelector("#e_cat_slot").appendChild(catWrap);
+    document.body.appendChild(overlay);
+    overlay.onclick = function (e) { if (e.target === overlay) overlay.remove(); };
+    dlg.querySelector("#e_cancel").onclick = function () { overlay.remove(); };
+    dlg.querySelector("#e_save").onclick = function () {
+      var name = dlg.querySelector("#e_name").value.trim();
+      if (!name) { toast("软件名称不能为空", false); return; }
+      var catVal = (catSel.value === "__new__") ? catInp.value.trim() : catSel.value;
+      if (!catVal) { toast("请选择分类或输入新分类名", false); return; }
+      var fd = new FormData();
+      fd.append("dir", s.dir);
+      fd.append("name", name);
+      fd.append("cat", catVal);
+      fd.append("desc", dlg.querySelector("#e_desc").value.trim());
+      fd.append("ver", dlg.querySelector("#e_ver").value.trim());
+      fd.append("src", dlg.querySelector("#e_src").value.trim());
+      fetch("/api/edit?key=" + encodeURIComponent(key), { method: "POST", body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (r2) {
+          toast(r2.msg, r2.ok);
+          if (r2.ok) { overlay.remove(); load(); }
+        })
+        .catch(function () { toast("网络错误", false); });
+    };
+  }
+  function esc(s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
+
+  if (!key) { toast("缺少访问密钥，请用 http://服务器:8080/admin?key=密钥 打开", false); }
+  load();
+
+  // ---------- 下载记录 ----------
+  var logTimer = null;
+  function loadLogs(q) {
+    var url = "/api/logs?key=" + encodeURIComponent(key);
+    if (q) url += "&q=" + encodeURIComponent(q);
+    fetch(url).then(function (r) { return r.json(); }).then(function (r) {
+      if (!r.ok) return;
+      var tb = qs("logtbody"); tb.innerHTML = "";
+      qs("logcount").textContent = "（最近 " + r.rows.length + " 条" + (q ? "，筛选\"" + q + "\"" : "") + "）";
+      qs("logempty").style.display = r.rows.length ? "none" : "block";
+      r.rows.forEach(function (e) {
+        var tr = document.createElement("tr");
+        tr.innerHTML = "<td>" + esc(e.t) + "</td><td>" + esc(e.ip) + "</td><td><b>" + esc(e.name) + "</b></td><td style='color:#9ca3af;font-size:12px'>" + esc(e.file) + "</td>";
+        tb.appendChild(tr);
+      });
+    }).catch(function () {});
+  }
+  qs("logsearch").addEventListener("input", function () {
+    clearTimeout(logTimer);
+    var v = this.value.trim();
+    logTimer = setTimeout(function () { loadLogs(v); }, 300);
+  });
+  loadLogs("");
+})();
+</script>
+</body>
+</html>

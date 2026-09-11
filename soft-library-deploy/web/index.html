@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企业软件库</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --auth: #f59e0b;
+    --auth-bg: #fffbeb;
+    --auth-border: #fde68a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    background: linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%);
+    color: #fff;
+    padding: 28px 0 64px;
+  }
+  .header-inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+  header h1 { font-size: 26px; font-weight: 600; }
+  header p { margin-top: 6px; font-size: 14px; opacity: .85; }
+  .search-wrap { max-width: 1100px; margin: -36px auto 0; padding: 0 20px; }
+  .search-box {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff; border-radius: 10px; padding: 8px 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  }
+  .search-box input {
+    flex: 1; border: none; outline: none; font-size: 15px; padding: 8px 0;
+    font-family: inherit;
+  }
+  .search-box .icon { color: var(--muted); font-size: 18px; }
+  main { max-width: 1100px; margin: 24px auto 0; padding: 0 20px 60px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .tab {
+    border: 1px solid var(--border); background: #fff; color: var(--muted);
+    border-radius: 20px; padding: 6px 16px; font-size: 13px; cursor: pointer;
+    transition: all .15s;
+  }
+  .tab:hover { border-color: var(--primary); color: var(--primary); }
+  .tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .notice {
+    background: var(--auth-bg); border: 1px solid var(--auth-border);
+    border-radius: 8px; padding: 10px 16px; font-size: 13px; color: #92400e;
+    margin-bottom: 20px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px;
+    display: flex; flex-direction: column; gap: 10px;
+    transition: box-shadow .15s, transform .15s;
+  }
+  .card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+  .card.auth { border-color: var(--auth-border); background: var(--auth-bg); }
+  .card-head { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 700; color: #fff;
+  }
+  .card-title { font-size: 15px; font-weight: 600; }
+  .card-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .badge {
+    font-size: 11px; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle;
+  }
+  .badge.free { background: #dcfce7; color: #15803d; }
+  .badge.auth { background: #fef3c7; color: #b45309; }
+  .desc { font-size: 13px; color: var(--muted); line-height: 1.5; flex: 1; }
+  .cmd-hint { font-size: 12px; color: var(--muted); }
+  .cmd-hint code {
+    background: #f3f4f6; border-radius: 4px; padding: 2px 6px;
+    font-family: Consolas, monospace; font-size: 11px;
+  }
+  .card-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .btn {
+    flex: 1; text-align: center; border-radius: 8px; padding: 8px 0;
+    font-size: 13px; cursor: pointer; border: 1px solid transparent;
+    text-decoration: none; font-family: inherit;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-ghost { background: #fff; color: var(--primary); border-color: var(--primary); }
+  .btn-ghost:hover { background: #eff6ff; }
+  .btn-auth { background: var(--auth); color: #fff; }
+  .btn-auth:hover { background: #d97706; }
+  .empty { text-align: center; color: var(--muted); padding: 60px 0; font-size: 14px; }
+  footer {
+    text-align: center; color: var(--muted); font-size: 12px;
+    padding: 20px 0 40px;
+  }
+  /* toast */
+  #toast {
+    position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1f2937; color: #fff; border-radius: 8px; padding: 10px 24px;
+    font-size: 13px; opacity: 0; pointer-events: none; transition: all .25s;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <h1>企业软件库</h1>
+    <p>内网软件下载中心 · 常用软件与授权软件统一管理 · 版本由 IT 部门统一维护</p>
+  </div>
+</header>
+
+<div class="search-wrap">
+  <div class="search-box">
+    <span class="icon">⌕</span>
+    <input id="search" type="text" placeholder="搜索软件名称，如：7-Zip、Chrome、压缩…">
+    <select id="sortby" title="排序方式" style="border:none;outline:none;font-size:13px;color:#6b7280;background:transparent;cursor:pointer;font-family:inherit">
+      <option value="hot">按下载热度</option>
+      <option value="cat">按分类</option>
+      <option value="date">按更新时间</option>
+      <option value="name">按名称</option>
+    </select>
+  </div>
+</div>
+
+<main>
+  <div class="tabs" id="tabs"></div>
+  <div class="notice">
+    <b>商业授权软件</b>的下载与安装许可由 IT 部门统一管理，安装前请联系 IT 确认授权余量，未经授权的安装属于违规使用。
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">没有找到匹配的软件</div>
+</main>
+
+<footer>如有软件需求或版本更新反馈，请联系 IT 部门 · 本站仅限内网访问</footer>
+<div id="toast">已复制</div>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  var CATS = ["全部"];
+  var CAT_COLORS = {
+    "浏览器": "#2563eb", "办公套件": "#dc2626", "压缩工具": "#0891b2",
+    "PDF 工具": "#ea580c", "输入法": "#7c3aed", "通讯协作": "#16a34a",
+    "系统工具": "#475569", "商业授权": "#f59e0b"
+  };
+  var currentCat = "全部";
+  var keyword = "";
+  var sortMode = "hot";   // hot=下载热度(默认) / cat=分类 / date=更新时间 / name=名称
+  var CAT_ORDER = ["浏览器","办公套件","压缩工具","PDF 工具","输入法","通讯协作","系统工具","未分类"];
+  var dlStats = {};   // 软件名 → 下载次数（来自管理后台统计接口）
+
+  var data = (window.SOFTWARE_DATA || []).map(function (s) {
+    var c = (s.category || "未分类").trim();
+    if (CATS.indexOf(c) < 0) CATS.push(c);
+    return s;
+  });
+
+  // 排序：授权软件固定垫底；免费软件按所选方式排
+  function sortedList() {
+    var free = data.filter(function (s) { return s.authorized !== true; });
+    var auth = data.filter(function (s) { return s.authorized === true; });
+    var dl = function (s) { return dlStats[s.name] || 0; };
+    if (sortMode === "hot") {
+      free.sort(function (a, b) { return dl(b) - dl(a); });
+    } else if (sortMode === "cat") {
+      free.sort(function (a, b) {
+        var ia = CAT_ORDER.indexOf(a.category), ib = CAT_ORDER.indexOf(b.category);
+        if (ia < 0) ia = 99; if (ib < 0) ib = 99;
+        return ia - ib;
+      });
+    } else if (sortMode === "date") {
+      free.sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
+    } else {
+      free.sort(function (a, b) { return (a.name || "").localeCompare(b.name || "", "zh"); });
+    }
+    return free.concat(auth);
+  }
+
+  document.getElementById("sortby").addEventListener("change", function (e) {
+    sortMode = e.target.value;
+    render();
+  });
+
+  var tabsEl = document.getElementById("tabs");
+  CATS.forEach(function (c) {
+    var el = document.createElement("div");
+    el.className = "tab" + (c === currentCat ? " active" : "");
+    el.textContent = c;
+    el.onclick = function () {
+      currentCat = c;
+      tabsEl.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
+      el.classList.add("active");
+      render();
+    };
+    tabsEl.appendChild(el);
+  });
+
+  document.getElementById("search").addEventListener("input", function (e) {
+    keyword = e.target.value.trim().toLowerCase();
+    render();
+  });
+
+  function toast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(function () { t.classList.remove("show"); }, 1500);
+  }
+
+  // 下载行为上报：管理后台 8080 端口接收，服务端按来源 IP 记录
+  function reportDownload(softName, file) {
+    try {
+      // FormData 放请求体（中文软件名不乱码）；sendBeacon 页面跳转不丢失，降级 fetch
+      var fd = new FormData();
+      fd.append("name", softName);
+      fd.append("file", file);
+      var url = "http://" + location.hostname + ":8080/api/log";
+      if (navigator.sendBeacon && navigator.sendBeacon(url, fd)) return;
+      fetch(url, { method: "POST", body: fd, keepalive: true }).catch(function () {});
+    } catch (e) { /* 上报失败不影响下载 */ }
+  }
+
+  function copyCmd(cmd) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(cmd).then(function () { toast("安装命令已复制，可直接粘贴到终端"); });
+    } else {
+      var ta = document.createElement("textarea");
+      ta.value = cmd; document.body.appendChild(ta);
+      ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+      toast("安装命令已复制，可直接粘贴到终端");
+    }
+  }
+
+  function render() {
+    var grid = document.getElementById("grid");
+    var empty = document.getElementById("empty");
+    grid.innerHTML = "";
+    var shown = 0;
+    sortedList().forEach(function (s) {
+      if (currentCat !== "全部" && s.category !== currentCat) return;
+      if (keyword) {
+        var hay = (s.name + " " + s.desc + " " + s.category).toLowerCase();
+        if (hay.indexOf(keyword) < 0) return;
+      }
+      shown++;
+      var isAuth = s.authorized === true;
+      var card = document.createElement("div");
+      card.className = "card" + (isAuth ? " auth" : "");
+
+      var color = isAuth ? "#f59e0b" : (CAT_COLORS[s.category] || "#2563eb");
+      var initial = (s.name || "?").charAt(0);
+
+      var meta = [];
+      if (s.version) meta.push("v" + s.version);
+      if (s.size) meta.push(s.size);
+      if (s.date) meta.push(s.date);
+      if (dlStats[s.name]) meta.push("已下载 " + dlStats[s.name] + " 次");
+
+      var actionsHtml;
+      if (isAuth) {
+        actionsHtml = '<a class="btn btn-auth" href="' + (s.file || "#") + '">申请下载</a>'
+          + (s.note ? '<a class="btn btn-ghost" href="javascript:void(0)" onclick="alert(\'' + s.note.replace(/'/g, "\\'") + '\')">授权说明</a>' : "");
+      } else {
+        actionsHtml = '<a class="btn btn-primary" href="' + s.file + '">下载安装包</a>'
+          + (s.wingetCmd ? '<a class="btn btn-ghost" href="javascript:void(0)" data-cmd="' + s.wingetCmd.replace(/"/g, "&quot;") + '">复制命令行安装</a>' : "");
+      }
+
+      card.innerHTML =
+        '<div class="card-head">'
+        + '<div class="logo" style="background:' + color + '">' + initial + '</div>'
+        + '<div><div class="card-title">' + s.name
+        + '<span class="badge ' + (isAuth ? "auth" : "free") + '">' + (isAuth ? "商业授权" : "免费") + '</span>'
+        + '</div><div class="card-meta">' + (meta.join(" · ") || "&nbsp;") + '</div></div>'
+        + '</div>'
+        + '<div class="desc">' + (s.desc || "") + '</div>'
+        + (s.wingetCmd && !isAuth ? '<div class="cmd-hint">命令行：<code>' + s.wingetCmd + '</code></div>' : "")
+        + (isAuth && s.note ? '<div class="desc" style="font-size:12px">' + s.note + '</div>' : "")
+        + '<div class="card-actions">' + actionsHtml + '</div>';
+
+      grid.appendChild(card);
+      // 下载按钮埋点（不阻断下载）
+      var dlBtn = card.querySelector(".btn-primary, .btn-auth");
+      if (dlBtn && dlBtn.getAttribute("href") && dlBtn.getAttribute("href") !== "#") {
+        dlBtn.addEventListener("click", function () {
+          reportDownload(s.name, s.file);
+        });
+      }
+    });
+    // 绑定复制按钮
+    grid.querySelectorAll("[data-cmd]").forEach(function (btn) {
+      btn.onclick = function () { copyCmd(btn.getAttribute("data-cmd")); };
+    });
+    empty.style.display = shown === 0 ? "block" : "none";
+  }
+
+  render();
+
+  // 拉取下载量统计（管理后台需运行；不运行则不显示热度，页面其他功能不受影响）
+  try {
+    fetch("http://" + location.hostname + ":8080/api/dlstats")
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (r && r.ok && r.stats) { dlStats = r.stats; render(); }
+      })
+      .catch(function () {});
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

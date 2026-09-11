@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Microsoft Office 专业增强版",
+    "category": "商业授权",
+    "desc": "Word / Excel / PowerPoint / Outlook 全组件，需公司批量授权（KMS 或 MAK）。",
+    "version": "2021",
+    "note": "安装前请联系 IT 部门确认授权余量。部署方式：IT 统一下发或到 IT 服务台办理。"
+  },
+  {
+    "name": "Adobe Acrobat Pro",
+    "category": "商业授权",
+    "desc": "PDF 编辑、转换、签名专业版，按席位授权，数量有限。",
+    "note": "按席位授权，申请流程：OA 提交「软件授权申请」或联系 IT 服务台。"
+  },
+  {
+    "name": "WinRAR",
+    "category": "商业授权",
+    "desc": "商业压缩软件。公司已采购授权后可提供下载，未采购前请使用免费的 7-Zip。",
+    "note": "仅授权岗位可安装，申请流程：OA 提交「软件授权申请」。"
+  },
+  {
+    "name": "Navicat Premium",
+    "category": "商业授权",
+    "desc": "数据库管理工具，仅限研发/DBA 岗位申请。",
+    "note": "仅研发、DBA 岗位可申请，需部门负责人审批。"
+  }
+]
